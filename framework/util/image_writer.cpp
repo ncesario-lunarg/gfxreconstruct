@@ -552,6 +552,7 @@ bool WritePngImageSeparateAlpha(const std::string& filename,
                                 DataFormats        format)
 {
     bool success = WritePngImage(filename, width, height, data, data_pitch, format, false);
+#ifdef GFXRECON_ENABLE_PNG_SCREENSHOT
     if (success && DataFormatHasAlpha(format))
     {
         const std::string alpha_filename = util::filepath::InsertFilenamePostfix(filename, "_alpha");
@@ -569,7 +570,7 @@ bool WritePngImageSeparateAlpha(const std::string& filename,
             GFXRECON_LOG_ERROR("%s() Failed writing file %s", __func__, alpha_filename.c_str());
         }
     }
-
+#endif
     return success;
 }
 
