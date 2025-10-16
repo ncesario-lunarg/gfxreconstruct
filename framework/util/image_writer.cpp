@@ -576,6 +576,7 @@ bool WritePngImageSeparateAlpha(const std::string& filename,
                                 uint32_t           data_pitch,
                                 DataFormats        format)
 {
+#ifdef GFXRECON_ENABLE_PNG_SCREENSHOT
     bool success = WritePngImage(filename, width, height, data, data_pitch, format, false);
     if (success && DataFormatHasAlpha(format))
     {
@@ -596,6 +597,14 @@ bool WritePngImageSeparateAlpha(const std::string& filename,
     }
 
     return success;
+#endif
+    (void)filename;
+    (void)width;
+    (void)height;
+    (void)data;
+    (void)data_pitch;
+    (void)format;
+    return false;
 }
 
 GFXRECON_END_NAMESPACE(imagewriter)
