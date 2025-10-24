@@ -36,8 +36,7 @@
 
 | Kind | Definition |
 | --- | --- |
-| `compressible_bytes` | A byte buffer that is read differently depending on the block's $compressed flag. CONVENTION: The on-disk source for compressed data is always the entire remainder of the block's payload. Therefore, a field of this kind MUST be the last field defined in any payload and may only appear once.
- |
+| `compressible_bytes` | A byte buffer that is read differently depending on the block's $compressed flag. CONVENTION: The on-disk source for compressed data is always the entire remainder of the block's payload. Therefore, a field of this kind MUST be the last field defined in any payload and may only appear once. |
 | `slice_bytes` | A view/slice into another field that is a raw byte array. |
 
 

@@ -194,7 +194,7 @@ def generate_field_kinds_table(data):
     stream.write("| Kind | Definition |\n")
     stream.write("| --- | --- |\n")
     for name, definition in data.items():
-        def_str = str(definition['description'])
+        def_str = str(definition['description']).rstrip()
         stream.write(f"| `{name}` | {def_str} |\n")
     return stream.getvalue()
 
