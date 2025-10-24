@@ -1,0 +1,623 @@
+# GFXReconstruct machine‑readable binary schema (for codegen)
+# Version 0.8: Corrected based on automated code review.
+# Purpose: drive automatic generation of decoders/dispatch/consumers to replace boilerplate
+# Source of truth for numeric IDs remains the C++ enums; this file defines structure & mapping.
+
+schema:
+  name: gfxreconstruct
+  version: 0.8
+  endianness: little
+  packing: 4
+  notes:
+    - "This schema defines the entire block structure, including the header, for code generation."
+    - "Numeric enum values are not duplicated here; codegen should import them from C++ headers."
+
+# Where codegen should read numeric enum values from (paths are repo‑relative hints)
+external_enums:
+  BlockType:
+    cxx_enum: format::BlockType
+    headers: [format/format.h]
+  MetaDataType:
+    cxx_enum: format::MetaDataType
+    headers: [format/format.h]
+  ApiCallId:
+    cxx_enum: format::ApiCallId
+    headers: [format/api_call_id.h]
+  MarkerType:
+    cxx_enum: format::MarkerType
+    headers: [format/format.h]
+  AnnotationType:
+    cxx_enum: format::AnnotationType
+    headers: [format/format.h]
+  ResourceValueType:
+    cxx_enum: format::ResourceValueType
+    headers: [format/format.h]
+  ParentToChildDependencyType:
+    cxx_enum: format::ParentToChildDependencyType
+    headers: [format/format.h]
+
+# Primitive field encodings used below
+primitives:
+  u8:   {bytes: 1,  signed: false}
+  u16:  {bytes: 2,  signed: false}
+  u32:  {bytes: 4,  signed: false}
+  u64:  {bytes: 8,  signed: false}
+  i32:  {bytes: 4,  signed: true}
+  i64:  {bytes: 8,  signed: true}
+  f32:  {bytes: 4,  float: true}
+  char: {bytes: 1,  signed: true}
+  wchar: {bytes: 2, signed: false} # For UTF-16
+
+# Special field types with complex decoding logic
+field_kinds:
+  compressible_bytes:
+    description: >
+      A byte buffer that is read differently depending on the block's $compressed flag.
+      CONVENTION: The on-disk source for compressed data is always the entire remainder of the block's payload.
+      Therefore, a field of this kind MUST be the last field defined in any payload and may only appear once.
+  slice_bytes:
+    semantics: [derived_slice]
+    description: "A view/slice into another field that is a raw byte array."
+
+# Reusable complex types
+complex_types:
+  FileHeader:
+    type: struct
+    fields:
+      - {name: fourcc, type: u32}
+      - {name: major_version, type: u32}
+      - {name: minor_version, type: u32}
+      - {name: num_options, type: u32}
+  FileOptionPair:
+    type: struct
+    fields:
+      - {name: key, type: u32}
+      - {name: value, type: u32}
+  BlockHeader:
+    type: struct
+    fields:
+      - {name: size, type: u64}
+      - {name: type, type: enum, enum: BlockType}
+  FileInfo:
+    type: struct
+    fields:
+      - {name: ProductVersion, type: char, count: 256}
+      - {name: FileVersion, type: char, count: 256}
+      - {name: AppVersion, type: u32, count: 4}
+      - {name: AppName, type: char, count: 256}
+      - {name: CompanyName, type: char, count: 256}
+      - {name: FileDescription, type: char, count: 256}
+      - {name: InternalName, type: char, count: 256}
+      - {name: OriginalFilename, type: char, count: 256}
+      - {name: ProductName, type: char, count: 256}
+  HardwareBufferPlaneInfo:
+    type: struct
+    fields:
+      - {name: offset, type: u64}
+      - {name: pixel_stride, type: u32}
+      - {name: row_pitch, type: u32}
+  SwapchainImageStateInfo:
+    type: struct
+    fields:
+      - {name: image_id, type: u64} # HandleId
+      - {name: image_index, type: u32}
+      - {name: image_layout, type: u32}
+      - {name: acquired, type: u32}
+      - {name: acquire_device_mask, type: u32}
+      - {name: acquire_semaphore_id, type: u64} # HandleId
+      - {name: acquire_fence_id, type: u64} # HandleId
+      - {name: last_presented_queue_id, type: u64} # HandleId
+  DeviceMemoryType:
+    type: struct
+    fields:
+      - {name: property_flags, type: u32}
+      - {name: heap_index, type: u32}
+  DeviceMemoryHeap:
+    type: struct
+    fields:
+      - {name: size, type: u64}
+      - {name: flags, type: u32}
+  InitDx12AccelerationStructureGeometryDesc:
+    type: struct
+    fields:
+      - {name: geometry_type, type: u32}
+      - {name: geometry_flags, type: u32}
+      - {name: aabbs_count, type: u64}
+      - {name: aabbs_stride, type: u64}
+      - {name: triangles_has_transform, type: u32}
+      - {name: triangles_index_format, type: u32}
+      - {name: triangles_vertex_format, type: u32}
+      - {name: triangles_index_count, type: u32}
+      - {name: triangles_vertex_count, type: u32}
+      - {name: triangles_vertex_stride, type: u64}
+  DxgiAdapterDesc:
+    type: struct
+    fields:
+      - name: Description
+        type: array
+        count: 128
+        element: {type: wchar}
+      - {name: VendorId, type: u32}
+      - {name: DeviceId, type: u32}
+      - {name: SubSysId, type: u32}
+      - {name: Revision, type: u32}
+      - {name: DedicatedVideoMemory, type: u64}
+      - {name: DedicatedSystemMemory, type: u64}
+      - {name: SharedSystemMemory, type: u64}
+      - {name: LuidLowPart, type: u32}
+      - {name: LuidHighPart, type: i32}
+      - {name: extra_info, type: u32}
+  Dx12RuntimeInfo:
+    type: struct
+    fields:
+      - name: version
+        type: array
+        count: 4 # kFileVersionSize
+        element: {type: u32}
+      - name: src
+        type: array
+        count: 256 # kMaxFilePropertySize
+        element: {type: char}
+  ViewRelativeLocation:
+    type: struct
+    fields:
+      - {name: session_id, type: u64} # HandleId
+      - {name: space_id, type: u64} # HandleId
+      - {name: flags, type: u64}
+      - {name: qx, type: f32}
+      - {name: qy, type: f32}
+      - {name: qz, type: f32}
+      - {name: qw, type: f32}
+      - {name: x, type: f32}
+      - {name: y, type: f32}
+      - {name: z, type: f32}
+
+# Universal block framing definition
+block_header:
+  use_type: BlockHeader
+  compression:
+    indicator: "(type & 0x80000000) != 0"
+    note: "Compression is indicated by the MSB of the 'type' field. The actual compression algorithm (e.g. LZ4, Zstd) is a file-level option specified in the file header, not in each block header."
+
+# Defines the two-stage decoding process
+levels:
+  - { name: framing, handled_by: "FileProcessor::ReadBlockHeader" }
+  - { name: payload, handled_by: "FileProcessor::<dispatch on header.type>" }
+
+# ===== Block payload schemas & decoder mappings =====
+# Each block describes the payload immediately following the block_header
+blocks:
+  - name: FunctionCall
+    block_type: kFunctionCallBlock
+    payload:
+      - {name: api_call_id, type: enum, enum: ApiCallId}
+      - {name: thread_id, type: u64}
+      - name: parameter_buffer
+        kind: compressible_bytes
+        has_uncompressed_size_prefix: true
+    dispatch:
+      method: DecodeFunctionCall
+      params: [api_call_id, {from_context: block_index}, thread_id, parameter_buffer]
+  - name: MethodCall
+    block_type: kMethodCallBlock
+    payload:
+      - {name: api_call_id, type: enum, enum: ApiCallId}
+      - {name: object_id, type: u64}
+      - {name: thread_id, type: u64}
+      - name: parameter_buffer
+        kind: compressible_bytes
+        has_uncompressed_size_prefix: true
+    dispatch:
+      method: DecodeMethodCall
+      params: [api_call_id, object_id, {from_context: block_index}, thread_id, parameter_buffer]
+  - name: FrameMarker
+    block_type: kFrameMarkerBlock
+    payload:
+      - {name: marker_type, type: enum, enum: MarkerType}
+      - {name: frame_number, type: u64}
+    dispatch:
+      method: DispatchFrameEndMarker
+      when: "marker_type == 2" # kEndMarker
+      params: [frame_number]
+  - name: StateMarker
+    block_type: kStateMarkerBlock
+    payload:
+      - {name: marker_type, type: enum, enum: MarkerType}
+      - {name: frame_number, type: u64}
+    dispatch:
+      - method: DispatchStateBeginMarker
+        when: "marker_type == 1" # kBeginMarker
+        params: [frame_number]
+      - method: DispatchStateEndMarker
+        when: "marker_type == 2" # kEndMarker
+        params: [frame_number]
+  - name: Annotation
+    block_type: kAnnotation
+    payload:
+      - {name: annotation_type, type: enum, enum: AnnotationType}
+      - {name: label_length, type: u32}
+      - {name: data_length, type: u64}
+      - {name: combined_buffer, type: u8, count_from: "label_length + data_length"}
+      - name: label
+        kind: slice_bytes
+        base: combined_buffer
+        len_field: label_length
+        interpretation: string
+        description: "A non-null-terminated string derived from the combined_buffer."
+      - name: data
+        kind: slice_bytes
+        base: combined_buffer
+        offset_expr: "label_length"
+        len_field: data_length
+        interpretation: string
+        description: "A non-null-terminated string derived from the combined_buffer."
+    dispatch:
+      handler: annotation_handler_
+      method: ProcessAnnotation
+      params: [{from_context: block_index}, annotation_type, label, data]
+  - name: MetaData
+    block_type: kMetaDataBlock
+    prefix:
+      - {name: meta_data_id, type: u32}
+      - {name: meta_data_type, type: enum, enum: MetaDataType, derived: true, expr: "meta_data_id & 0xFFFF"}
+    variants:
+      - meta_data_type: kDisplayMessageCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - name: message
+            type: u8
+            count_from: "$remaining"
+            interpretation: string
+        dispatch:
+          method: DispatchDisplayMessageCommand
+          params: [thread_id, message]
+      - meta_data_type: kFillMemoryCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: memory_id, type: u64}
+          - {name: memory_offset, type: u64}
+          - {name: memory_size, type: u64}
+          - {name: data, kind: compressible_bytes, uncompressed_len_field: memory_size}
+        dispatch:
+          method: DispatchFillMemoryCommand
+          params: [thread_id, memory_id, memory_offset, memory_size, data]
+      - meta_data_type: kResizeWindowCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: surface_id, type: u64}
+          - {name: width, type: u32}
+          - {name: height, type: u32}
+        dispatch:
+          method: DispatchResizeWindowCommand
+          params: [thread_id, surface_id, width, height]
+      - meta_data_type: kSetSwapchainImageStateCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: device_id, type: u64}
+          - {name: swapchain_id, type: u64}
+          - {name: last_presented_image, type: u32}
+          - {name: image_info_count, type: u32}
+          - name: image_state
+            type: array
+            count: image_info_count
+            element: {type: SwapchainImageStateInfo}
+        dispatch:
+          method: DispatchSetSwapchainImageStateCommand
+          params: [thread_id, device_id, swapchain_id, last_presented_image, image_state]
+      - meta_data_type: kBeginResourceInitCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: device_id, type: u64}
+          - {name: max_resource_size, type: u64}
+          - {name: max_copy_size, type: u64}
+        dispatch:
+          method: DispatchBeginResourceInitCommand
+          params: [thread_id, device_id, max_resource_size, max_copy_size]
+      - meta_data_type: kEndResourceInitCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: device_id, type: u64}
+        dispatch:
+          method: DispatchEndResourceInitCommand
+          params: [thread_id, device_id]
+      - meta_data_type: kInitBufferCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: device_id, type: u64}
+          - {name: buffer_id, type: u64}
+          - {name: data_size, type: u64}
+          - {name: data, kind: compressible_bytes, uncompressed_len_field: data_size}
+        dispatch:
+          method: DispatchInitBufferCommand
+          params: [thread_id, device_id, buffer_id, data_size, data]
+      - meta_data_type: kInitImageCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: device_id, type: u64}
+          - {name: image_id, type: u64}
+          - {name: data_size, type: u64}
+          - {name: aspect, type: u32}
+          - {name: layout, type: u32}
+          - {name: level_count, type: u32}
+          - name: level_sizes
+            type: array
+            count: level_count
+            element: {type: u64}
+          - {name: data, kind: compressible_bytes, uncompressed_len_field: data_size}
+        dispatch:
+          method: DispatchInitImageCommand
+          params: [thread_id, device_id, image_id, data_size, aspect, layout, level_sizes, data]
+      - meta_data_type: kDestroyHardwareBufferCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: buffer_id, type: u64}
+        dispatch:
+          method: DispatchDestroyHardwareBufferCommand
+          params: [thread_id, buffer_id]
+      - meta_data_type: kSetDevicePropertiesCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: physical_device_id, type: u64}
+          - {name: api_version, type: u32}
+          - {name: driver_version, type: u32}
+          - {name: vendor_id, type: u32}
+          - {name: device_id, type: u32}
+          - {name: device_type, type: u32}
+          - {name: pipeline_cache_uuid, type: u8, count: 16}
+          - {name: device_name_len, type: u32}
+          - name: device_name
+            type: u8
+            count_from: device_name_len
+            interpretation: string
+        dispatch:
+          method: DispatchSetDevicePropertiesCommand
+          params: [thread_id, physical_device_id, api_version, driver_version, vendor_id, device_id, device_type, pipeline_cache_uuid, device_name]
+      - meta_data_type: kSetDeviceMemoryPropertiesCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: physical_device_id, type: u64}
+          - {name: memory_type_count, type: u32}
+          - {name: memory_heap_count, type: u32}
+          - name: memory_types
+            type: array
+            count: memory_type_count
+            element: {type: DeviceMemoryType}
+          - name: memory_heaps
+            type: array
+            count: memory_heap_count
+            element: {type: DeviceMemoryHeap}
+        dispatch:
+          method: DispatchSetDeviceMemoryPropertiesCommand
+          params: [thread_id, physical_device_id, memory_types, memory_heaps]
+      - meta_data_type: kResizeWindowCommand2
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: surface_id, type: u64}
+          - {name: width, type: u32}
+          - {name: height, type: u32}
+          - {name: pre_transform, type: u32}
+        dispatch:
+          method: DispatchResizeWindowCommand2
+          params: [thread_id, surface_id, width, height, pre_transform]
+      - meta_data_type: kSetOpaqueAddressCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: device_id, type: u64}
+          - {name: object_id, type: u64}
+          - {name: address, type: u64}
+        dispatch:
+          method: DispatchSetOpaqueAddressCommand
+          params: [thread_id, device_id, object_id, address]
+      - meta_data_type: kSetRayTracingShaderGroupHandlesCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: device_id, type: u64}
+          - {name: pipeline_id, type: u64}
+          - {name: data_size, type: u64}
+          - {name: data, type: u8, count_from: data_size}
+        dispatch:
+          method: DispatchSetRayTracingShaderGroupHandlesCommand
+          params: [thread_id, device_id, pipeline_id, data_size, data]
+      - meta_data_type: kCreateHeapAllocationCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: allocation_id, type: u64}
+          - {name: allocation_size, type: u64}
+        dispatch:
+          method: DispatchCreateHeapAllocationCommand
+          params: [thread_id, allocation_id, allocation_size]
+      - meta_data_type: kInitSubresourceCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: device_id, type: u64}
+          - {name: resource_id, type: u64}
+          - {name: subresource, type: u32}
+          - {name: initial_state, type: u32}
+          - {name: resource_state, type: u32}
+          - {name: barrier_flags, type: u32}
+          - {name: data_size, type: u64}
+          - {name: data, kind: compressible_bytes, uncompressed_len_field: data_size}
+        dispatch:
+          method: DispatchInitSubresourceCommand
+          params:
+            - construct_type: format::InitSubresourceCommandHeader
+              from_fields: [thread_id, device_id, resource_id, subresource, initial_state, resource_state, barrier_flags, data_size]
+            - data
+      - meta_data_type: kExeFileInfoCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: info_record, type: FileInfo}
+        dispatch:
+          method: DispatchExeFileInfo
+          params:
+            - thread_id
+            - construct_type: format::ExeFileInfoBlock
+              from_fields: [thread_id, info_record]
+      - meta_data_type: kInitDx12AccelerationStructureCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: dest_acceleration_structure_data, type: u64}
+          - {name: copy_source_gpu_va, type: u64}
+          - {name: copy_mode, type: u32}
+          - {name: inputs_type, type: u32}
+          - {name: inputs_flags, type: u32}
+          - {name: inputs_num_instance_descs, type: u32}
+          - {name: inputs_num_geometry_descs, type: u32}
+          - {name: inputs_data_size, type: u64}
+          - name: geometry_descs
+            type: array
+            count: inputs_num_geometry_descs
+            element: {type: InitDx12AccelerationStructureGeometryDesc}
+          - name: build_inputs_data
+            kind: compressible_bytes
+            uncompressed_len_field: inputs_data_size
+        dispatch:
+          method: DispatchInitDx12AccelerationStructureCommand
+          params:
+            - construct_type: format::InitDx12AccelerationStructureCommandHeader
+              from_fields: [thread_id, dest_acceleration_structure_data, copy_source_gpu_va, copy_mode, inputs_type, inputs_flags, inputs_num_instance_descs, inputs_num_geometry_descs, inputs_data_size]
+            - geometry_descs
+            - build_inputs_data
+      - meta_data_type: kFillMemoryResourceValueCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: resource_value_count, type: u64}
+          - name: data
+            kind: compressible_bytes
+            uncompressed_len_expr: "resource_value_count * (1 + 8)" # sizeof(ResourceValueType) + sizeof(u64)
+        dispatch:
+          method: DispatchFillMemoryResourceValueCommand
+          params:
+            - construct_type: format::FillMemoryResourceValueCommandHeader
+              from_fields: [thread_id, resource_value_count]
+            - data
+      - meta_data_type: kDxgiAdapterInfoCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: adapter_desc, type: DxgiAdapterDesc}
+        dispatch:
+          method: DispatchGetDxgiAdapterInfo
+          params:
+            - construct_type: format::DxgiAdapterInfoCommandHeader
+              from_fields: [thread_id, adapter_desc]
+      - meta_data_type: kDriverInfoCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: driver_record, type: char, count: 1024}
+        dispatch:
+          method: DispatchDriverInfo
+          params:
+            - thread_id
+            - construct_type: format::DriverInfoBlock
+              from_fields: [driver_record]
+      - meta_data_type: kDx12RuntimeInfoCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: runtime_info, type: Dx12RuntimeInfo}
+        dispatch:
+          method: DispatchGetDx12RuntimeInfo
+          params:
+            - construct_type: format::Dx12RuntimeInfoCommandHeader
+              from_fields: [thread_id, runtime_info]
+      - meta_data_type: kParentToChildDependency
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: dependency_type, type: enum, enum: ParentToChildDependencyType}
+          - {name: parent_id, type: u64}
+          - {name: child_count, type: u32}
+          - name: children_ids
+            type: array
+            count: child_count
+            element: {type: u64}
+        dispatch:
+          method: DispatchSetTlasToBlasDependencyCommand
+          when: "dependency_type == 1" # kAccelerationStructuresDependency
+          params: [parent_id, children_ids]
+      - meta_data_type: kSetEnvironmentVariablesCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: string_length, type: u64}
+          - name: env_string
+            type: u8
+            count_from: string_length
+            description: "A series of null-terminated strings, one after another, ending with a final null terminator. The total length includes all nulls."
+        dispatch:
+          method: DispatchSetEnvironmentVariablesCommand
+          params:
+            - construct_type: format::SetEnvironmentVariablesCommand
+              from_fields: [thread_id, string_length]
+            - env_string
+      - meta_data_type: kViewRelativeLocation
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: location, type: ViewRelativeLocation}
+        dispatch:
+          method: DispatchViewRelativeLocation
+          params: [thread_id, location]
+      - meta_data_type: kExecuteBlocksFromFile
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: n_blocks, type: u32}
+          - {name: offset, type: i64}
+          - {name: filename_length, type: u32}
+          - name: filename
+            type: u8
+            count_from: filename_length
+            interpretation: string
+        dispatch:
+          method: DispatchExecuteBlocksFromFile
+          params: [thread_id, n_blocks, offset, filename]
+      - meta_data_type: kCreateHardwareBufferCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: device_id, type: u64}
+          - {name: memory_id, type: u64}
+          - {name: buffer_id, type: u64}
+          - {name: format, type: u32}
+          - {name: width, type: u32}
+          - {name: height, type: u32}
+          - {name: stride, type: u32}
+          - {name: usage, type: u64}
+          - {name: layers, type: u32}
+          - {name: planes, type: u32}
+          - name: plane_info
+            type: array
+            count: planes
+            element: {type: HardwareBufferPlaneInfo}
+        dispatch:
+          method: DispatchCreateHardwareBufferCommand
+          params: [thread_id, device_id, memory_id, buffer_id, format, width, height, stride, usage, layers, plane_info]
+      - meta_data_type: kInitializeMetaCommand
+        payload:
+          - {name: thread_id, type: u64}
+          - {name: capture_id, type: u64}
+          - {name: block_index, type: u32}
+          - {name: total_number_of_initializemetacommand, type: u32}
+          - {name: initialization_parameters_data_size, type: u64}
+          - name: data
+            kind: compressible_bytes
+            uncompressed_len_field: initialization_parameters_data_size
+        dispatch:
+          method: DispatchInitializeMetaCommand
+          params:
+            - construct_type: format::InitializeMetaCommand
+              from_fields: [thread_id, capture_id, block_index, total_number_of_initializemetacommand, initialization_parameters_data_size]
+            - data
+      - meta_data_type: kVulkanBuildAccelerationStructuresCommand
+        payload:
+          - {name: parameter_buffer, type: u8, count_from: "$remaining"}
+        dispatch:
+          method: DispatchVulkanAccelerationStructuresBuildMetaCommand
+          params: [parameter_buffer, {from_context: payload_size}]
+      - meta_data_type: kVulkanCopyAccelerationStructuresCommand
+        payload:
+          - {name: parameter_buffer, type: u8, count_from: "$remaining"}
+        dispatch:
+          method: DispatchVulkanAccelerationStructuresCopyMetaCommand
+          params: [parameter_buffer, {from_context: payload_size}]
+      - meta_data_type: kVulkanWriteAccelerationStructuresPropertiesCommand
+        payload:
+          - {name: parameter_buffer, type: u8, count_from: "$remaining"}
+        dispatch:
+          method: DispatchVulkanAccelerationStructuresWritePropertiesMetaCommand
+          params: [parameter_buffer, {from_context: payload_size}]
