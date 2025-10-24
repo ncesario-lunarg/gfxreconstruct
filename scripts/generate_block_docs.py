@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Parses a GFXReconstruct YAML schema and generates Markdown documentation.
+Generates Markdown documentation from "GFXReconstruct yaml schema."
 
 Usage:
     python generate_schema_docs.py <input_yaml_file> <output_markdown_file>
-
-Requires:
-    PyYAML (install with: pip install PyYAML)
 """
 
 import sys
@@ -129,27 +126,11 @@ def build_fields_table_html(fields, title=None):
     stream.write("</tbody></table>")
     return stream.getvalue()
 
-def build_payload_html(block):
-    """Builds the complete HTML for the 'Payload / Variants' cell."""
-    payload = block.get('payload')
-    prefix = block.get('prefix')
-    variants = block.get('variants')
-    
-    stream = io.StringIO()
-    if payload:
-        stream.write(build_fields_table_html(payload))
-        
-    if prefix:
-        stream.write(build_fields_table_html(prefix, title="Prefix"))
-        
-    if variants:
-        stream.write("<h4 style=\"margin: 10px 0 5px 0;\">Variants</h4>")
-        for variant in variants:
-            title = f"Variant: <code>{variant.get('meta_data_type')}</code>"
-            stream.write(build_fields_table_html(variant.get('payload'), title=title))
-            
-    result = stream.getvalue()
-    return result or "N/A"
+def build_payload_html(payload_fields):
+    """Builds the complete HTML for a simple 'payload' list."""
+    if not payload_fields:
+        return "N/A"
+    return build_fields_table_html(payload_fields)
 
 
 # --- Main Markdown Generation Functions ---
@@ -160,8 +141,24 @@ def generate_key_value_table(data):
     stream.write("| Property | Value |\n")
     stream.write("| --- | --- |\n")
     for key, value in data.items():
-        value_str = str(value).replace("\n", " ")
+        if isinstance(value, list):
+            value_str = "".join([f"<li>{str(v)}</li>" for v in value])
+        else:
+            value_str = str(value).replace("\n", " ")
         stream.write(f"| `{key}` | {value_str} |\n")
+    return stream.getvalue()
+
+def generate_block_header_table(data):
+    """Generates a 2-column Markdown table for a simple dictionary."""
+    stream = io.StringIO()
+    stream.write("| Type | Compression |\n")
+    stream.write("| --- | --- |\n")
+    stream.write(f"| `{data.get('use_type', 'N/A')}` |")
+    compression = data['compression']
+    stream.write(f"<li>Indicator {compression.get('indicator', 'N/A')}</li>")
+    if 'note' in compression:
+        stream.write(f"<li>{compression['note']}</li>")
+    stream.write(" |\n")
     return stream.getvalue()
 
 def generate_external_enums_table(data):
@@ -177,10 +174,18 @@ def generate_external_enums_table(data):
 def generate_primitives_table(data):
     """Generates a table for the 'primitives' section."""
     stream = io.StringIO()
-    stream.write("| Primitive | Definition |\n")
-    stream.write("| --- | --- |\n")
+    stream.write("| Primitive | Size in Bytes | Type |\n")
+    stream.write("| --- | --- | --- |\n")
     for name, definition in data.items():
-        stream.write(f"| `{name}` | `{str(definition)}` |\n")
+        ty = 'Unknown'
+        if 'signed' in definition:
+            if definition['signed']:
+                ty = 'Signed Integer'
+            else:
+                ty = 'Unsigned Integer'
+        elif definition.get('float'):
+            ty = 'Floating Point'
+        stream.write(f"| `{name}` | `{str(definition['bytes'])}` | {ty} |\n")
     return stream.getvalue()
 
 def generate_field_kinds_table(data):
@@ -189,7 +194,7 @@ def generate_field_kinds_table(data):
     stream.write("| Kind | Definition |\n")
     stream.write("| --- | --- |\n")
     for name, definition in data.items():
-        def_str = str(definition).replace("\n", "<br>")
+        def_str = str(definition['description'])
         stream.write(f"| `{name}` | {def_str} |\n")
     return stream.getvalue()
 
@@ -273,9 +278,20 @@ def generate_blocks_table(data):
         name = block.get('name', 'N/A')
         block_type = block.get('block_type', 'N/A')
         
-        # Generate HTML for payload and dispatch cells
-        payload_html = build_payload_html(block)
-        dispatch_html = build_dispatch_html(block.get('dispatch'))
+        if name == 'MetaData':
+            # Special handling for MetaData block
+            prefix_html = build_fields_table_html(block.get('prefix'), title="Prefix")
+            payload_html = (
+                f"{prefix_html}"
+                "<p style=\"margin-top: 10px;\">"
+                "<i>See the <b>MetaData Blocks</b> table below for individual command variants.</i>"
+                "</p>"
+            )
+            dispatch_html = "N/A (See <b>MetaData Blocks</b> table)"
+        else:
+            # Standard handling for all other blocks
+            payload_html = build_payload_html(block.get('payload'))
+            dispatch_html = build_dispatch_html(block.get('dispatch'))
         
         # Write the main table row
         stream.write(
@@ -285,31 +301,68 @@ def generate_blocks_table(data):
         )
     return stream.getvalue()
 
+def generate_metadata_blocks_table(variants_data):
+    """Generates a table for the MetaData variants, treating each like a block."""
+    stream = io.StringIO()
+    stream.write("| Name (MetaDataType) | Payload | Dispatch |\n")
+    stream.write("| --- | --- | --- |\n")
+
+    for variant in variants_data:
+        name = variant.get('meta_data_type', 'N/A')
+        
+        # Generate HTML for payload and dispatch cells
+        payload_html = build_fields_table_html(variant.get('payload'))
+        dispatch_html = build_dispatch_html(variant.get('dispatch'))
+        
+        # Write the main table row
+        stream.write(
+            f"| **`{name}`** "
+            f"| {payload_html} "
+            f"| {dispatch_html} |\n"
+        )
+    return stream.getvalue()
+
 def generate_documentation(schema_data):
     """Generates the full Markdown documentation string from the parsed schema."""
     stream = io.StringIO()
     
-    schema_name = schema_data.get('schema', {}).get('name', 'Schema')
-    schema_version = schema_data.get('schema', {}).get('version', '')
-    stream.write(f"# {schema_name.capitalize()} Schema Documentation (v{schema_version})\n\n")
+    # schema_name = schema_data.get('schema', {}).get('name', 'Schema')
+    # schema_version = schema_data.get('schema', {}).get('version', '')
+    # stream.write(f"# {schema_name.capitalize()} Schema Documentation (v{schema_version})\n\n")
+    stream.write('# GFXReconstruct Schema Documentation\n\n')
 
     generators = {
-        'schema': ("Schema Properties", generate_key_value_table),
+        #'schema': ("Schema Properties", generate_key_value_table),
         'external_enums': ("External Enums", generate_external_enums_table),
         'primitives': ("Primitives", generate_primitives_table),
         'field_kinds': ("Special Field Kinds", generate_field_kinds_table),
         'complex_types': ("Complex Types (Structs)", generate_complex_types_table),
-        'block_header': ("Block Header", generate_key_value_table),
+        'block_header': ("Block Header", generate_block_header_table),
         'levels': ("Decoding Levels", generate_levels_table),
         'blocks': ("Block Payloads", generate_blocks_table),
     }
 
+    # Find MetaData variants before looping
+    metadata_block = next((b for b in schema_data.get('blocks', []) if b.get('name') == 'MetaData'), None)
+    metadata_variants = metadata_block.get('variants', []) if metadata_block else []
+
+    # Generate all standard sections
     for key, (title, func) in generators.items():
         if key in schema_data:
             stream.write(f"## {title}\n\n")
             stream.write(func(schema_data[key]))
             stream.write("\n\n---\n\n")
             
+    # Manually generate the new MetaData Blocks section at the end
+    if metadata_variants:
+        stream.write(f"## MetaData Blocks\n\n")
+        stream.write(
+            "This table details the specific payload and dispatch logic for each "
+            "`MetaDataType` variant within the main `MetaData` block.\n\n"
+        )
+        stream.write(generate_metadata_blocks_table(metadata_variants))
+        stream.write("\n\n---\n\n")
+
     return stream.getvalue()
 
 def main():
