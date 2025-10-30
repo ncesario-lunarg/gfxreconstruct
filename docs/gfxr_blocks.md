@@ -4,24 +4,55 @@ This file documents the existing block types in GFXReconstruct as of 10/2025.
 This file is manually maintained for now, and so may be out of date with respect to what currently exists in the source code.
 ## Index
 
+- [File overview](#file-overview)
+- [Block Type and Payloads](#block-type-and-payloads)
 - [Universal block framing definition](#universal-block-framing-definition)
-- [Block Payloads](#block-payloads)
 - [External Enums](#external-enums)
 - [Primitives](#primitives)
 - [Special Field Kinds](#special-field-kinds)
 - [Complex Types](#complex-types)
 - [Decoding Levels](#decoding-levels)
-## Universal block framing definition
+## File overview
+A GFXReconstruct file is effectively a series of "blocks" layed out contiguously in memory:
 
-A "frame" is delimited by a <a href="#complex-type-BlockHeader">BlockHeader</a>.
+<table style="border: 1px solid;">
+    <tr style="border: 1px solid;">
+        <td><a href="#complex-type-FileHeader">FileHeader</a></td>
+    </tr>
+    <tr><td>
+        <table style="border: 1px solid;">
+            <tr>
+                <td><a href="#complex-type-BlockHeader">BlockHeader</a></td>
+            </tr>
+            <tr>
+                <td><a href="#block-payloads">Block Payload</a></td>
+            </tr>
+        </table>
+    </td></tr>
+    <tr><td>
+        <table style="border: 1px solid;">
+            <tr>
+                <td><a href="#complex-type-BlockHeader">BlockHeader</a></td>
+            </tr>
+            <tr>
+                <td><a href="#block-payloads">Block Payload</a></td>
+            </tr>
+        </table>
+    </td></tr>
+    <tr><td>...</td></tr>
+</table>
 
-Whether or not the "frame" is compressed is determined by `(type & 0x80000000) != 0`.
-
-i.e., compression is indicated by the MSB of the 'type' field. The actual compression algorithm (e.g. LZ4, Zstd) is a file-level option specified in the file header, not in each block header.
-
----
-
-## Block Payloads
+Each <a href="#enum-BlockType">BlockType</a> can have a custom header that derives from
+<a href="#complex-type-BlockHeader">BlockHeader</a>. e.g., the FunctionCallHeader contains an <a href="#enum-ApiCallId">ApiCallId</a>
+and a thread ID.
+                 
+A payload is processed by:
+1. Decoding the payload.
+   This should be done using a subclass of `ApiDecoder`.
+   This is effectively deserializing function arguments, structs, etc.
+2. "Consuming" the decoded payload. A decoder may have multiple consumers,
+    with each consumer processing the decoded payload in the order it was added to the decoder.
+## Block Type and Payloads
 
 | Name | Block Type | Payload / Variants | Dispatch |
 | --- | --- | --- | --- |
@@ -32,6 +63,16 @@ i.e., compression is indicated by the MSB of the 'type' field. The actual compre
 | **Annotation** | `kAnnotation` | <table style="border: 1px solid"><thead><tr><th>Name</th><th>Type</th><th>Count</th><th>Details</th></tr></thead><tbody><tr><td><code>annotation_type</code></td><td><a href="#enum-AnnotationType">AnnotationType</a></td><td>1</td><td></td></tr><tr><td><code>label_length</code></td><td><code><a href="#primitive-u32">u32</a></code></td><td>1</td><td></td></tr><tr><td><code>data_length</code></td><td><code><a href="#primitive-u64">u64</a></code></td><td>1</td><td></td></tr><tr><td><code>combined_buffer</code></td><td><code><a href="#primitive-u8">u8</a></code></td><td>from <code>label_length + data_length</code></td><td></td></tr><tr><td><code>label</code></td><td><a href="#special-slice_bytes">slice_bytes</a></td><td>1</td><td>A non-null-terminated string derived from the combined_buffer.</td></tr><tr><td><code>data</code></td><td><a href="#special-slice_bytes">slice_bytes</a></td><td>1</td><td>A non-null-terminated string derived from the combined_buffer.</td></tr></tbody></table> | <table style="border: 1px solid;"><thead><tr><th>Method</th><th>When</th><th>Params</th></tr></thead><tbody><tr><td>Handler: <code>annotation_handler_</code><br>Method: <code>ProcessAnnotation</code></td><td><code>Always</code></td><td><ul><li>from_context: <code>block_index</code></li><li><code>annotation_type</code></li><li><code>label</code></li><li><code>data</code></li></ul></td></tr></tbody></table> |
 | **MetaData** | `kMetaDataBlock` | <h5 style="margin: 5px 0;">Prefix</h5><table style="border: 1px solid"><thead><tr><th>Name</th><th>Type</th><th>Count</th><th>Details</th></tr></thead><tbody><tr><td><code>meta_data_id</code></td><td><code><a href="#primitive-u32">u32</a></code></td><td>1</td><td></td></tr><tr><td><code>meta_data_type</code></td><td><a href="#enum-MetaDataType">MetaDataType</a></td><td>1</td><td></td></tr></tbody></table><p style="margin-top: 10px;"><i>See the <b>MetaData Blocks</b> table below for individual command variants.</i></p> | N/A (See <b>MetaData Blocks</b> table) |
 
+
+---
+
+## Universal block framing definition
+
+A "frame" is delimited by a <a href="#complex-type-BlockHeader">BlockHeader</a>.
+
+Whether or not the "frame" is compressed is determined by `(type & 0x80000000) != 0`.
+
+i.e., compression is indicated by the MSB of the 'type' field. The actual compression algorithm (e.g. LZ4, Zstd) is a file-level option specified in the file header, not in each block header.
 
 ---
 

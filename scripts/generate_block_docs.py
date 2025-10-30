@@ -353,8 +353,8 @@ def generate_documentation(schema_data):
     stream.write('# GFXReconstruct Schema Documentation\n\n')
 
     generators = {
+        'blocks': ("Block Type and Payloads", generate_blocks_table),
         'block_header': ("Universal block framing definition", generate_block_header_table),
-        'blocks': ("Block Payloads", generate_blocks_table),
         #'schema': ("Schema Properties", generate_key_value_table),
         'external_enums': ("External Enums", generate_external_enums_table),
         'primitives': ("Primitives", generate_primitives_table),
@@ -368,8 +368,51 @@ This file is manually maintained for now, and so may be out of date with respect
 ''')
 
     stream.write("## Index\n\n")
+    stream.write("- [File overview](#file-overview)\n")
     for key, (title, _) in generators.items():
         stream.write(f"- [{title}](#{title.lower().replace(' ', '-')})\n")
+
+    stream.write('''## File overview
+A GFXReconstruct file is effectively a series of "blocks" layed out contiguously in memory:
+
+<table style="border: 1px solid;">
+    <tr style="border: 1px solid;">
+        <td><a href="#complex-type-FileHeader">FileHeader</a></td>
+    </tr>
+    <tr><td>
+        <table style="border: 1px solid;">
+            <tr>
+                <td><a href="#complex-type-BlockHeader">BlockHeader</a></td>
+            </tr>
+            <tr>
+                <td><a href="#block-payloads">Block Payload</a></td>
+            </tr>
+        </table>
+    </td></tr>
+    <tr><td>
+        <table style="border: 1px solid;">
+            <tr>
+                <td><a href="#complex-type-BlockHeader">BlockHeader</a></td>
+            </tr>
+            <tr>
+                <td><a href="#block-payloads">Block Payload</a></td>
+            </tr>
+        </table>
+    </td></tr>
+    <tr><td>...</td></tr>
+</table>
+
+Each <a href="#enum-BlockType">BlockType</a> can have a custom header that derives from
+<a href="#complex-type-BlockHeader">BlockHeader</a>. e.g., the FunctionCallHeader contains an <a href="#enum-ApiCallId">ApiCallId</a>
+and a thread ID.
+                 
+A payload is processed by:
+1. Decoding the payload.
+   This should be done using a subclass of `ApiDecoder`.
+   This is effectively deserializing function arguments, structs, etc.
+2. "Consuming" the decoded payload. A decoder may have multiple consumers,
+    with each consumer processing the decoded payload in the order it was added to the decoder.
+''')
 
     # Find MetaData variants before looping
     metadata_block = next((b for b in schema_data.get('blocks', []) if b.get('name') == 'MetaData'), None)
