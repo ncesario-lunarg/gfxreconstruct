@@ -23,6 +23,7 @@ external_enums:
   ApiCallId:
     cxx_enum: format::ApiCallId
     headers: [format/api_call_id.h]
+    description: "Unique identifier for the API call being recorded. See framework/format/api_call_id.h."
   MarkerType:
     cxx_enum: format::MarkerType
     headers: [format/format.h]
@@ -64,20 +65,37 @@ complex_types:
   FileHeader:
     type: struct
     fields:
-      - {name: fourcc, type: u32}
-      - {name: major_version, type: u32}
-      - {name: minor_version, type: u32}
-      - {name: num_options, type: u32}
+      - name: fourcc
+        type: u32
+        description: "4-character \"magic number.\" Must be 'GFXR' (0x47465852)."
+      - name: major_version
+        type: u32
+        description: "Major file version"
+      - name: minor_version
+        type: u32
+        description: "Minor file version"
+      - name: num_options
+        type: u32
+        description: "Number of FileOptionPairs that follow the header. e.g., compression type."
   FileOptionPair:
     type: struct
     fields:
-      - {name: key, type: u32}
-      - {name: value, type: u32}
+      - name: key
+        type: u32
+        description: "Key"
+      - name: value
+        type: u32
+        description: "Value"
   BlockHeader:
     type: struct
     fields:
-      - {name: size, type: u64}
-      - {name: type, type: enum, enum: BlockType}
+      - name: size
+        type: u64
+        description: "Size of the block payload in bytes, excluding the header."
+      - name: type
+        type: enum
+        enum: BlockType
+        description: "Type of the block. See 'Blocks' section below for details on each block type."
   FileInfo:
     type: struct
     fields:
@@ -93,43 +111,79 @@ complex_types:
   HardwareBufferPlaneInfo:
     type: struct
     fields:
-      - {name: offset, type: u64}
-      - {name: pixel_stride, type: u32}
-      - {name: row_pitch, type: u32}
+      - name: offset
+        type: u64
+        description: "Offset from the start of the memory allocation in bytes."
+      - name: pixel_stride
+        type: u32
+        description: "Number of bytes between adjacent pixels in a row."
+      - name: row_pitch
+        type: u32
+        description: "Number of bytes between adjacent rows."
   SwapchainImageStateInfo:
     type: struct
     fields:
-      - {name: image_id, type: u64} # HandleId
-      - {name: image_index, type: u32}
-      - {name: image_layout, type: u32}
-      - {name: acquired, type: u32}
-      - {name: acquire_device_mask, type: u32}
-      - {name: acquire_semaphore_id, type: u64} # HandleId
-      - {name: acquire_fence_id, type: u64} # HandleId
-      - {name: last_presented_queue_id, type: u64} # HandleId
+      - name: image_id
+        type: u64
+        description: "HandleId of the swapchain image."
+      - name: image_index
+        type: u32
+      - name: image_layout
+        type: u32
+      - name: acquired
+        type: u32
+      - name: acquire_device_mask
+        type: u32
+      - name: acquire_semaphore_id
+        type: u64
+        description: "HandleId of the semaphore used for acquisition."
+      - name: acquire_fence_id
+        type: u64
+        description: "HandleId of the fence used for acquisition."
+      - name: last_presented_queue_id
+        type: u64
+        description: "HandleId of the last presented queue."
   DeviceMemoryType:
     type: struct
     fields:
-      - {name: property_flags, type: u32}
-      - {name: heap_index, type: u32}
+      - name: property_flags
+        type: u32
+        description: Memory properties (e.g., DEVICE_LOCAL, HOST_VISIBLE).
+      - name: heap_index
+        type: u32
+        describetion: e.g., VkMemoryType::heapIndex
   DeviceMemoryHeap:
     type: struct
     fields:
-      - {name: size, type: u64}
-      - {name: flags, type: u32}
+      - name: size
+        type: u64
+        description: e.g., VkMemoryHeap::size
+      - name: flags
+        type: u32
+        description: e.g., VkMemoryHeap::flags
   InitDx12AccelerationStructureGeometryDesc:
     type: struct
     fields:
-      - {name: geometry_type, type: u32}
-      - {name: geometry_flags, type: u32}
-      - {name: aabbs_count, type: u64}
-      - {name: aabbs_stride, type: u64}
-      - {name: triangles_has_transform, type: u32}
-      - {name: triangles_index_format, type: u32}
-      - {name: triangles_vertex_format, type: u32}
-      - {name: triangles_index_count, type: u32}
-      - {name: triangles_vertex_count, type: u32}
-      - {name: triangles_vertex_stride, type: u64}
+      - name: geometry_type
+        type: u32
+      - name: geometry_flags
+        type: u32
+      - name: aabbs_count
+        type: u64
+      - name: aabbs_stride
+        type: u64
+      - name: triangles_has_transform
+        type: u32
+      - name: triangles_index_format
+        type: u32
+      - name: triangles_vertex_format
+        type: u32
+      - name: triangles_index_count
+        type: u32
+      - name: triangles_vertex_count
+        type: u32
+      - name: triangles_vertex_stride
+        type: u64
   DxgiAdapterDesc:
     type: struct
     fields:
@@ -177,7 +231,7 @@ block_header:
   use_type: BlockHeader
   compression:
     indicator: "(type & 0x80000000) != 0"
-    note: "Compression is indicated by the MSB of the 'type' field. The actual compression algorithm (e.g. LZ4, Zstd) is a file-level option specified in the file header, not in each block header."
+    note: "i.e., compression is indicated by the MSB of the 'type' field. The actual compression algorithm (e.g. LZ4, Zstd) is a file-level option specified in the file header, not in each block header."
 
 # Defines the two-stage decoding process
 levels:
@@ -190,20 +244,29 @@ blocks:
   - name: FunctionCall
     block_type: kFunctionCallBlock
     payload:
-      - {name: api_call_id, type: enum, enum: ApiCallId}
-      - {name: thread_id, type: u64}
+      - name: api_call_id
+        type: enum
+        enum: ApiCallId
+      - name: thread_id
+        type: u64
+        description: "Uniquely identifies the thread that made the API call."
       - name: parameter_buffer
         kind: compressible_bytes
         has_uncompressed_size_prefix: true
+        description: "A sequence of bytes containing the serialized parameters for the API call."
     dispatch:
       method: DecodeFunctionCall
       params: [api_call_id, {from_context: block_index}, thread_id, parameter_buffer]
   - name: MethodCall
     block_type: kMethodCallBlock
     payload:
-      - {name: api_call_id, type: enum, enum: ApiCallId}
-      - {name: object_id, type: u64}
-      - {name: thread_id, type: u64}
+      - name: api_call_id
+        type: enum
+        enum: ApiCallId
+      - name: object_id
+        type: u64
+      - name: thread_id
+        type: u64
       - name: parameter_buffer
         kind: compressible_bytes
         has_uncompressed_size_prefix: true
@@ -213,11 +276,14 @@ blocks:
   - name: FrameMarker
     block_type: kFrameMarkerBlock
     payload:
-      - {name: marker_type, type: enum, enum: MarkerType}
-      - {name: frame_number, type: u64}
+      - name: marker_type
+        type: enum
+        enum: MarkerType
+      - name: frame_number
+        type: u64
     dispatch:
       method: DispatchFrameEndMarker
-      when: "marker_type == 2" # kEndMarker
+      when: "marker_type == kEndMarker"
       params: [frame_number]
   - name: StateMarker
     block_type: kStateMarkerBlock
@@ -226,10 +292,10 @@ blocks:
       - {name: frame_number, type: u64}
     dispatch:
       - method: DispatchStateBeginMarker
-        when: "marker_type == 1" # kBeginMarker
+        when: "marker_type ==  kBeginMarker"
         params: [frame_number]
       - method: DispatchStateEndMarker
-        when: "marker_type == 2" # kEndMarker
+        when: "marker_type ==  kEndMarker"
         params: [frame_number]
   - name: Annotation
     block_type: kAnnotation
@@ -531,7 +597,7 @@ blocks:
             element: {type: u64}
         dispatch:
           method: DispatchSetTlasToBlasDependencyCommand
-          when: "dependency_type == 1" # kAccelerationStructuresDependency
+          when: "dependency_type ==  kAccelerationStructuresDependency"
           params: [parent_id, children_ids]
       - meta_data_type: kSetEnvironmentVariablesCommand
         payload:

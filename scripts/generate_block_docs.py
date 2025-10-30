@@ -35,11 +35,11 @@ def build_dispatch_html(dispatch_data):
     dispatch_list = dispatch_data if isinstance(dispatch_data, list) else [dispatch_data]
     
     stream = io.StringIO()
-    stream.write("<table style=\"border-collapse: collapse; width: 100%;\">")
-    stream.write("<thead><tr style=\"background-color: #f2f2f2;\">")
-    stream.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">Method</th>")
-    stream.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">When</th>")
-    stream.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">Params</th>")
+    stream.write("<table style=\"border: 1px solid;\">")
+    stream.write("<thead><tr>")
+    stream.write("<th>Method</th>")
+    stream.write("<th>When</th>")
+    stream.write("<th>Params</th>")
     stream.write("</tr></thead><tbody>")
     
     for item in dispatch_list:
@@ -57,15 +57,15 @@ def build_dispatch_html(dispatch_data):
         params_list_str = "<ul>" + "".join([f"<li>{format_dispatch_param(p)}</li>" for p in params]) + "</ul>"
         
         stream.write("<tr>")
-        stream.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\">{method_str}</td>")
-        stream.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\">{when_str}</td>")
-        stream.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\">{params_list_str}</td>")
+        stream.write(f"<td>{method_str}</td>")
+        stream.write(f"<td>{when_str}</td>")
+        stream.write(f"<td>{params_list_str}</td>")
         stream.write("</tr>")
 
     stream.write("</tbody></table>")
     return stream.getvalue()
 
-def build_fields_table_html(fields, title=None):
+def build_fields_table_html(schema_data, fields, title=None):
     """Builds an HTML table for a list of payload fields."""
     if not fields:
         return "(No fields)"
@@ -74,27 +74,36 @@ def build_fields_table_html(fields, title=None):
     if title:
         stream.write(f"<h5 style=\"margin: 5px 0;\">{html.escape(title)}</h5>")
         
-    stream.write("<table style=\"border-collapse: collapse; width: 100%;\">")
-    stream.write("<thead><tr style=\"background-color: #f2f2f2;\">")
-    stream.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">Name</th>")
-    stream.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">Type / Kind</th>")
-    stream.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">Count</th>")
-    stream.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">Details</th>")
+    stream.write("<table style=\"border: 1px solid\">")
+    stream.write("<thead><tr>")
+    stream.write("<th>Name</th>")
+    stream.write("<th>Type</th>")
+    stream.write("<th>Count</th>")
+    stream.write("<th>Details</th>")
     stream.write("</tr></thead><tbody>")
 
     for field in fields:
         name_str = f"<code>{html.escape(field.get('name', 'N/A'))}</code>"
-        
+
         # Type / Kind
         if 'kind' in field:
-            type_kind_str = f"<code>{html.escape(field.get('kind'))}</code>"
+            type_kind_str = f"<a href=\"#special-{field.get('kind')}\">{field.get('kind')}</a>"
         elif field.get('type') == 'enum':
-            type_kind_str = f"enum (<code>{html.escape(field.get('enum'))}</code>)"
+            type_kind_str = f"<a href=\"#enum-{field.get('enum')}\">{field.get('enum')}</a>"
         elif field.get('type') == 'array':
             elem_type = field.get('element', {}).get('type', '?')
-            type_kind_str = f"array (elem: <code>{html.escape(elem_type)}</code>)"
+            if elem_type in schema_data.get('complex_types', {}).keys():
+                elem_type = f"<a href=\"#complex-type-{elem_type}\">{elem_type}</a>"
+            elif elem_type in schema_data.get('primitives', {}).keys():
+                elem_type = f"<a href=\"#primitive-{elem_type}\">{elem_type}</a>"
+            type_kind_str = f"<code>{elem_type}[]</code>"
         else:
-            type_kind_str = f"<code>{html.escape(field.get('type', 'N/A'))}</code>"
+            ty = field.get('type', 'N/A')
+            if ty in schema_data.get('complex_types', {}).keys():
+                ty = f"<a href=\"#complex-type-{ty}\">{ty}</a>"
+            elif ty in schema_data.get('primitives', {}).keys():
+                ty = f"<a href=\"#primitive-{ty}\">{ty}</a>"
+            type_kind_str = f"<code>{ty}</code>"
 
         # Count
         if 'count' in field:
@@ -103,34 +112,35 @@ def build_fields_table_html(fields, title=None):
             count_str = f"from <code>{html.escape(field.get('count_from'))}</code>"
         else:
             count_str = "1"
-            
+
         # Details
-        details_list = []
-        for key in ['has_uncompressed_size_prefix', 'uncompressed_len_field', 'uncompressed_len_expr', 
-                    'base', 'len_field', 'offset_expr', 'interpretation', 'derived', 'expr', 'description']:
-            if key in field:
-                details_list.append(f"<b>{key}</b>: {html.escape(str(field[key]))}")
+        # details_list = []
+        # for key in ['has_uncompressed_size_prefix', 'uncompressed_len_field', 'uncompressed_len_expr', 
+        #             'base', 'len_field', 'offset_expr', 'interpretation', 'derived', 'expr', 'description']:
+        #     if key in field:
+        #         details_list.append(f"<b>{key}</b>: {html.escape(str(field[key]))}")
         
-        if details_list:
-            details_str = "<ul>" + "".join([f"<li>{d}</li>" for d in details_list]) + "</ul>"
-        else:
-            details_str = "N/A"
+        # if details_list:
+        #     details_str = "<ul>" + "".join([f"<li>{d}</li>" for d in details_list]) + "</ul>"
+        # else:
+        #     details_str = "N/A"
+        details_str = field.get('description', '')
 
         stream.write("<tr>")
-        stream.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\">{name_str}</td>")
-        stream.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\">{type_kind_str}</td>")
-        stream.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\">{count_str}</td>")
-        stream.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\">{details_str}</td>")
+        stream.write(f"<td>{name_str}</td>")
+        stream.write(f"<td>{type_kind_str}</td>")
+        stream.write(f"<td>{count_str}</td>")
+        stream.write(f"<td>{details_str}</td>")
         stream.write("</tr>")
 
     stream.write("</tbody></table>")
     return stream.getvalue()
 
-def build_payload_html(payload_fields):
+def build_payload_html(schema_data, payload_fields):
     """Builds the complete HTML for a simple 'payload' list."""
     if not payload_fields:
         return "N/A"
-    return build_fields_table_html(payload_fields)
+    return build_fields_table_html(schema_data, payload_fields)
 
 
 # --- Main Markdown Generation Functions ---
@@ -148,57 +158,55 @@ def generate_key_value_table(data):
         stream.write(f"| `{key}` | {value_str} |\n")
     return stream.getvalue()
 
-def generate_block_header_table(data):
+def generate_block_header_table(_, data):
     """Generates a 2-column Markdown table for a simple dictionary."""
     stream = io.StringIO()
-    stream.write("| Type | Compression |\n")
-    stream.write("| --- | --- |\n")
-    stream.write(f"| `{data.get('use_type', 'N/A')}` |")
+    stream.write(f'A "frame" is delimited by a <a href="#complex-type-{data["use_type"]}">{data["use_type"]}</a>.\n\n')
     compression = data['compression']
-    stream.write(f"<li>Indicator {compression.get('indicator', 'N/A')}</li>")
-    if 'note' in compression:
-        stream.write(f"<li>{compression['note']}</li>")
-    stream.write(" |\n")
+    stream.write(f'Whether or not the "frame" is compressed is determined by `{compression["indicator"]}`.\n\n')
+    stream.write(compression["note"])
     return stream.getvalue()
 
-def generate_external_enums_table(data):
+def generate_external_enums_table(_, data):
     """Generates a table for the 'external_enums' section."""
     stream = io.StringIO()
     stream.write("| Enum Name | C++ Enum | Headers |\n")
     stream.write("| --- | --- | --- |\n")
     for name, info in data.items():
         headers = ", ".join([f"`{h}`" for h in info.get('headers', [])])
-        stream.write(f"| `{name}` | `{info.get('cxx_enum', '')}` | {headers} |\n")
+        stream.write(f"| <a id=\"enum-{name}\"></a>`{name}` | `{info.get('cxx_enum', '')}` | {headers} |\n")
     return stream.getvalue()
 
-def generate_primitives_table(data):
+def generate_primitives_table(_, data):
     """Generates a table for the 'primitives' section."""
     stream = io.StringIO()
     stream.write("| Primitive | Size in Bytes | Type |\n")
     stream.write("| --- | --- | --- |\n")
     for name, definition in data.items():
         ty = 'Unknown'
-        if 'signed' in definition:
+        if 'wchar' == name:
+            ty = '"Wide" Character (for UTF-16/32)'
+        elif 'signed' in definition:
             if definition['signed']:
                 ty = 'Signed Integer'
             else:
                 ty = 'Unsigned Integer'
         elif definition.get('float'):
             ty = 'Floating Point'
-        stream.write(f"| `{name}` | `{str(definition['bytes'])}` | {ty} |\n")
+        stream.write(f"| <a id=\"primitive-{name}\"></a>`{name}` | `{str(definition['bytes'])}` | {ty} |\n")
     return stream.getvalue()
 
-def generate_field_kinds_table(data):
+def generate_field_kinds_table(_, data):
     """Generates a table for the 'field_kinds' section."""
     stream = io.StringIO()
     stream.write("| Kind | Definition |\n")
     stream.write("| --- | --- |\n")
     for name, definition in data.items():
         def_str = str(definition['description']).rstrip()
-        stream.write(f"| `{name}` | {def_str} |\n")
+        stream.write(f"| <a id=\"special-{name}\"></a>`{name}` | {def_str} |\n")
     return stream.getvalue()
 
-def generate_complex_types_table(data):
+def generate_complex_types_table(schema_data, data):
     """
     Generates a table for the 'complex_types' section, with a
     nested HTML table for fields.
@@ -208,15 +216,16 @@ def generate_complex_types_table(data):
     stream.write("| --- | --- |\n")
     
     for name, definition in data.items():
-        stream.write(f"| **`{name}`** | ")
+        stream.write(f"| **<a id=\"complex-type-{name}\"></a>`{name}`** | ")
         
         sub_table = io.StringIO()
-        sub_table.write("<table style=\"border-collapse: collapse; width: 100%;\">")
+        sub_table.write("<table style=\"border: 1px solid\">")
         sub_table.write("<thead>")
-        sub_table.write("<tr style=\"background-color: #f2f2f2;\">")
-        sub_table.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">Name</th>")
-        sub_table.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">Type</th>")
-        sub_table.write("<th style=\"border: 1px solid #ddd; padding: 8px; text-align: left;\">Count</th>")
+        sub_table.write("<tr>")
+        sub_table.write("<th>Name</th>")
+        sub_table.write("<th>Type</th>")
+        sub_table.write("<th>Count</th>")
+        sub_table.write("<th>Description</th>")
         sub_table.write("</tr>")
         sub_table.write("</thead>")
         sub_table.write("<tbody>")
@@ -231,12 +240,21 @@ def generate_complex_types_table(data):
                 field_type_str = field.get('type', 'N/A')
                 type_str = ""
                 if field_type_str == 'array':
-                    element_type = field.get('element', {}).get('type', '?')
-                    type_str = f"array (element: <code>{html.escape(element_type)}</code>)"
+                    elem_type = field.get('element', {}).get('type', '?')
+                    if elem_type in schema_data.get('complex_types', {}).keys():
+                        elem_type = f"<a href=\"#complex-type-{elem_type}\">{elem_type}</a>"
+                    elif elem_type in schema_data.get('primitives', {}).keys():
+                        elem_type = f"<a href=\"#primitive-{elem_type}\">{elem_type}</a>"
+                    type_str = f"<code>{elem_type}</code>[]"
                 elif field_type_str == 'enum':
-                    type_str = f"enum (<code>{html.escape(field.get('enum', '?'))}</code>)"
+                    type_str = f"<a href=\"#enum-{field.get('enum', '?')}\">{field.get('enum', '?')}</a>"
                 else:
-                    type_str = f"<code>{html.escape(field_type_str)}</code>"
+                    ty = field.get('type', 'N/A')
+                    if ty in schema_data.get('complex_types', {}).keys():
+                        ty = f"<a href=\"#complex-type-{ty}\">{ty}</a>"
+                    elif ty in schema_data.get('primitives', {}).keys():
+                        ty = f"<a href=\"#primitive-{ty}\">{ty}</a>"
+                    type_str = f"<code>{ty}</code>"
                 
                 count_str = "1"
                 if 'count' in field:
@@ -246,11 +264,14 @@ def generate_complex_types_table(data):
                 elif field_type_str == 'array':
                      if 'count' not in field and 'count_from' not in field:
                          count_str = "N/A"
+                
+                desc_str = field.get('description', '')
 
                 sub_table.write("<tr>")
-                sub_table.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\"><code>{html.escape(field_name)}</code></td>")
-                sub_table.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\">{type_str}</td>")
-                sub_table.write(f"<td style=\"border: 1px solid #ddd; padding: 8px;\"><code>{html.escape(count_str)}</code></td>")
+                sub_table.write(f"<td><code>{html.escape(field_name)}</code></td>")
+                sub_table.write(f"<td>{type_str}</td>")
+                sub_table.write(f"<td><code>{html.escape(count_str)}</code></td>")
+                sub_table.write(f"<td>{desc_str}</td>")
                 sub_table.write("</tr>")
 
         sub_table.write("</tbody></table>")
@@ -259,7 +280,7 @@ def generate_complex_types_table(data):
         
     return stream.getvalue()
 
-def generate_levels_table(data):
+def generate_levels_table(schema_data, data):
     """Generates a table for the 'levels' section."""
     stream = io.StringIO()
     stream.write("| Name | Handled By |\n")
@@ -268,7 +289,7 @@ def generate_levels_table(data):
         stream.write(f"| `{level.get('name')}` | `{level.get('handled_by')}` |\n")
     return stream.getvalue()
 
-def generate_blocks_table(data):
+def generate_blocks_table(schema_data, data):
     """Generates a table for the 'blocks' section with HTML sub-tables."""
     stream = io.StringIO()
     stream.write("| Name | Block Type | Payload / Variants | Dispatch |\n")
@@ -280,7 +301,7 @@ def generate_blocks_table(data):
         
         if name == 'MetaData':
             # Special handling for MetaData block
-            prefix_html = build_fields_table_html(block.get('prefix'), title="Prefix")
+            prefix_html = build_fields_table_html(schema_data, block.get('prefix'), title="Prefix")
             payload_html = (
                 f"{prefix_html}"
                 "<p style=\"margin-top: 10px;\">"
@@ -290,7 +311,7 @@ def generate_blocks_table(data):
             dispatch_html = "N/A (See <b>MetaData Blocks</b> table)"
         else:
             # Standard handling for all other blocks
-            payload_html = build_payload_html(block.get('payload'))
+            payload_html = build_payload_html(schema_data, block.get('payload'))
             dispatch_html = build_dispatch_html(block.get('dispatch'))
         
         # Write the main table row
@@ -301,7 +322,7 @@ def generate_blocks_table(data):
         )
     return stream.getvalue()
 
-def generate_metadata_blocks_table(variants_data):
+def generate_metadata_blocks_table(schema_data, variants_data):
     """Generates a table for the MetaData variants, treating each like a block."""
     stream = io.StringIO()
     stream.write("| Name (MetaDataType) | Payload | Dispatch |\n")
@@ -311,7 +332,7 @@ def generate_metadata_blocks_table(variants_data):
         name = variant.get('meta_data_type', 'N/A')
         
         # Generate HTML for payload and dispatch cells
-        payload_html = build_fields_table_html(variant.get('payload'))
+        payload_html = build_fields_table_html(schema_data, variant.get('payload'))
         dispatch_html = build_dispatch_html(variant.get('dispatch'))
         
         # Write the main table row
@@ -332,15 +353,23 @@ def generate_documentation(schema_data):
     stream.write('# GFXReconstruct Schema Documentation\n\n')
 
     generators = {
+        'block_header': ("Universal block framing definition", generate_block_header_table),
+        'blocks': ("Block Payloads", generate_blocks_table),
         #'schema': ("Schema Properties", generate_key_value_table),
         'external_enums': ("External Enums", generate_external_enums_table),
         'primitives': ("Primitives", generate_primitives_table),
         'field_kinds': ("Special Field Kinds", generate_field_kinds_table),
-        'complex_types': ("Complex Types (Structs)", generate_complex_types_table),
-        'block_header': ("Block Header", generate_block_header_table),
+        'complex_types': ("Complex Types", generate_complex_types_table),
         'levels': ("Decoding Levels", generate_levels_table),
-        'blocks': ("Block Payloads", generate_blocks_table),
     }
+
+    stream.write('''This file documents the existing block types in GFXReconstruct as of 10/2025.
+This file is manually maintained for now, and so may be out of date with respect to what currently exists in the source code.
+''')
+
+    stream.write("## Index\n\n")
+    for key, (title, _) in generators.items():
+        stream.write(f"- [{title}](#{title.lower().replace(' ', '-')})\n")
 
     # Find MetaData variants before looping
     metadata_block = next((b for b in schema_data.get('blocks', []) if b.get('name') == 'MetaData'), None)
@@ -350,7 +379,7 @@ def generate_documentation(schema_data):
     for key, (title, func) in generators.items():
         if key in schema_data:
             stream.write(f"## {title}\n\n")
-            stream.write(func(schema_data[key]))
+            stream.write(func(schema_data, schema_data[key]))
             stream.write("\n\n---\n\n")
             
     # Manually generate the new MetaData Blocks section at the end
@@ -360,7 +389,7 @@ def generate_documentation(schema_data):
             "This table details the specific payload and dispatch logic for each "
             "`MetaDataType` variant within the main `MetaData` block.\n\n"
         )
-        stream.write(generate_metadata_blocks_table(metadata_variants))
+        stream.write(generate_metadata_blocks_table(schema_data, metadata_variants))
         stream.write("\n\n---\n\n")
 
     return stream.getvalue()
@@ -370,10 +399,10 @@ def main():
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <input_yaml> <output_markdown>", file=sys.stderr)
         sys.exit(1)
-        
+
     input_file = sys.argv[1]
     output_file = sys.argv[2]
-    
+
     print(f"Loading schema from '{input_file}'...")
     try:
         with open(input_file, 'r', encoding='utf-8') as f:
@@ -392,11 +421,7 @@ def main():
         sys.exit(1)
 
     print("Generating Markdown documentation...")
-    try:
-        markdown_content = generate_documentation(schema_data)
-    except Exception as e:
-        print(f"An unexpected error occurred during documentation generation: {e}", file=sys.stderr)
-        sys.exit(1)
+    markdown_content = generate_documentation(schema_data)
 
     print(f"Writing documentation to '{output_file}'...")
     try:
