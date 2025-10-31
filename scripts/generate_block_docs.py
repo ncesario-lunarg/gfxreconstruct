@@ -292,8 +292,9 @@ def generate_levels_table(schema_data, data):
 def generate_blocks_table(schema_data, data):
     """Generates a table for the 'blocks' section with HTML sub-tables."""
     stream = io.StringIO()
-    stream.write("| Name | Block Type | Payload / Variants | Dispatch |\n")
-    stream.write("| --- | --- | --- | --- |\n")
+    # stream.write("| Name | Block Type | Payload / Variants | Dispatch |\n")
+    stream.write("| Name | Block Type | Payload / Variants |\n")
+    stream.write("| --- | --- | --- |\n")
     
     for block in data:
         name = block.get('name', 'N/A')
@@ -305,7 +306,7 @@ def generate_blocks_table(schema_data, data):
             payload_html = (
                 f"{prefix_html}"
                 "<p style=\"margin-top: 10px;\">"
-                "<i>See the <b>MetaData Blocks</b> table below for individual command variants.</i>"
+                "<i>See the <a href=\"#metadata-blocks\">MetaData Blocks</a> table below for individual command variants.</i>"
                 "</p>"
             )
             dispatch_html = "N/A (See <b>MetaData Blocks</b> table)"
@@ -317,29 +318,28 @@ def generate_blocks_table(schema_data, data):
         # Write the main table row
         stream.write(
             f"| **{name}** | `{block_type}` "
-            f"| {payload_html} "
-            f"| {dispatch_html} |\n"
+            f"| {payload_html} | \n"
         )
     return stream.getvalue()
 
 def generate_metadata_blocks_table(schema_data, variants_data):
     """Generates a table for the MetaData variants, treating each like a block."""
     stream = io.StringIO()
-    stream.write("| Name (MetaDataType) | Payload | Dispatch |\n")
-    stream.write("| --- | --- | --- |\n")
+    stream.write("| Name (MetaDataType) | Payload |\n")
+    stream.write("| --- | --- |\n")
 
     for variant in variants_data:
         name = variant.get('meta_data_type', 'N/A')
         
         # Generate HTML for payload and dispatch cells
         payload_html = build_fields_table_html(schema_data, variant.get('payload'))
-        dispatch_html = build_dispatch_html(variant.get('dispatch'))
+        # dispatch_html = build_dispatch_html(variant.get('dispatch'))
         
         # Write the main table row
         stream.write(
             f"| **`{name}`** "
-            f"| {payload_html} "
-            f"| {dispatch_html} |\n"
+            f"| {payload_html} |\n"
+            # f"| {dispatch_html} |\n"
         )
     return stream.getvalue()
 
@@ -354,13 +354,13 @@ def generate_documentation(schema_data):
 
     generators = {
         'blocks': ("Block Type and Payloads", generate_blocks_table),
-        'block_header': ("Universal block framing definition", generate_block_header_table),
+        #'block_header': ("Universal block framing definition", generate_block_header_table),
         #'schema': ("Schema Properties", generate_key_value_table),
-        'external_enums': ("External Enums", generate_external_enums_table),
+        'external_enums': ("Enums", generate_external_enums_table),
         'primitives': ("Primitives", generate_primitives_table),
         'field_kinds': ("Special Field Kinds", generate_field_kinds_table),
         'complex_types': ("Complex Types", generate_complex_types_table),
-        'levels': ("Decoding Levels", generate_levels_table),
+        #'levels': ("Decoding Levels", generate_levels_table),
     }
 
     stream.write('''This file documents the existing block types in GFXReconstruct as of 10/2025.
@@ -403,15 +403,34 @@ A GFXReconstruct file is effectively a series of "blocks" layed out contiguously
 </table>
 
 Each <a href="#enum-BlockType">BlockType</a> can have a custom header that derives from
-<a href="#complex-type-BlockHeader">BlockHeader</a>. e.g., the FunctionCallHeader contains an <a href="#enum-ApiCallId">ApiCallId</a>
-and a thread ID.
-                 
-A payload is processed by:
-1. Decoding the payload.
-   This should be done using a subclass of `ApiDecoder`.
-   This is effectively deserializing function arguments, structs, etc.
-2. "Consuming" the decoded payload. A decoder may have multiple consumers,
-    with each consumer processing the decoded payload in the order it was added to the decoder.
+<a href="#complex-type-BlockHeader">BlockHeader</a> to allow for additional block meta data that may
+not be provided by the block payload. e.g., the FunctionCallHeader contains an <a href="#enum-ApiCallId">ApiCallId</a>
+indicating which API the payload is associated with as well as a thread ID indicating the thread the API was executed from.
+
+A **block payload** is a sequence of bytes directly following the (possibly subclass
+of)<a href="#complex-type-BlockHeader">BlockHeader</a>. This sequence of bytes is _processed_ in the following way:
+1. Decode:
+   done using a subclass of `ApiDecoder`
+   and effectively deserializes function arguments, structs, etc.
+2. Consume: an operation performed on the deserialized data from the decoder.
+
+A decoder may have multiple consumers, with each consumer processing the decoded payload in the order it was added
+to the decoder. For example, a decoder for handling OpenXR may have 2 consumers: 1 for OpenXR API calls, and one for
+the graphics API being used in the application.
+
+## Compression
+
+A compression algorithm may be specified via a <a href="#complex-type-FileOptionPair">FileOptionPair</a> in the 
+<a href="#complex-type-FileHeader">FileHeader</a> and defines how block payloads <i>may</i> be compressed
+(<a href="#complex-type-BlockHeader">BlockHeader</a>s are not compressed).
+The most significant bit in the <code>BlockType</code> indicates whether or not that block's payload
+is compressed using the algorithm defined in the FileHeader
+(i.e., <code>payload_compressed == (type & 0x80000000) != 0</code>).
+
+The supported compression types are indicated by the `CompressionType` enum in [format.h](../framework/format/format.h).
+
+Below is a snapshot of block definitions. See the code, specifically [format.h](../framework/format/format.h),
+for the actual defintions of each block.
 ''')
 
     # Find MetaData variants before looping

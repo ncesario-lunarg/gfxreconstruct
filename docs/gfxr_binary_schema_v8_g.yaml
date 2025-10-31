@@ -99,15 +99,15 @@ complex_types:
   FileInfo:
     type: struct
     fields:
-      - {name: ProductVersion, type: char, count: 256}
-      - {name: FileVersion, type: char, count: 256}
-      - {name: AppVersion, type: u32, count: 4}
-      - {name: AppName, type: char, count: 256}
-      - {name: CompanyName, type: char, count: 256}
-      - {name: FileDescription, type: char, count: 256}
-      - {name: InternalName, type: char, count: 256}
-      - {name: OriginalFilename, type: char, count: 256}
-      - {name: ProductName, type: char, count: 256}
+      - {name: ProductVersion, type: array, element: {type: char}, count: 256}
+      - {name: FileVersion, type: array, element: {type: char}, count: 256}
+      - {name: AppVersion, type: array, element: {type: u32}, count: 4}
+      - {name: AppName, type: array, element: {type: char}, count: 256}
+      - {name: CompanyName, type: array, element: {type: char}, count: 256}
+      - {name: FileDescription, type: array, element: {type: char}, count: 256}
+      - {name: InternalName, type: array, element: {type: char}, count: 256}
+      - {name: OriginalFilename, type: array, element: {type: char}, count: 256}
+      - {name: ProductName, type: array, element: {type: char}, count: 256}
   HardwareBufferPlaneInfo:
     type: struct
     fields:
@@ -429,7 +429,7 @@ blocks:
           - {name: vendor_id, type: u32}
           - {name: device_id, type: u32}
           - {name: device_type, type: u32}
-          - {name: pipeline_cache_uuid, type: u8, count: 16}
+          - {name: pipeline_cache_uuid, type: arrary, element: {type: u8}, count: 16}
           - {name: device_name_len, type: u32}
           - name: device_name
             type: u8
@@ -569,7 +569,7 @@ blocks:
       - meta_data_type: kDriverInfoCommand
         payload:
           - {name: thread_id, type: u64}
-          - {name: driver_record, type: char, count: 1024}
+          - {name: driver_record, type: array, element: {type: char}, count: 1024}
         dispatch:
           method: DispatchDriverInfo
           params:
