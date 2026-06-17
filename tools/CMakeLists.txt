@@ -42,6 +42,6 @@ add_subdirectory(capture)
 add_subdirectory(gfxrecon)
 add_subdirectory(convert)
 
-if(MSVC)
+if(WIN32)
     add_subdirectory(launcher)
 endif()

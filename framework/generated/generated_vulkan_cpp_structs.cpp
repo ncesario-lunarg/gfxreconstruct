@@ -1608,11 +1608,11 @@ std::string GenerateStruct_StdVideoVP9SegmentationFlags(std::ostream &out, const
 std::string GenerateStruct_VkAllocationCallbacks(std::ostream &out, const VkAllocationCallbacks* structInfo, Decoded_VkAllocationCallbacks* metaInfo, VulkanCppConsumerBase &consumer){
     std::stringstream struct_body;
     out << "\t\t" << "// TODO: Support pUserData (non-struct output) argument." << std::endl;
-    struct_body << "\t\t\t" << structInfo->pfnAllocation << "," << std::endl;
-    struct_body << "\t\t\t" << structInfo->pfnReallocation << "," << std::endl;
-    struct_body << "\t\t\t" << structInfo->pfnFree << "," << std::endl;
-    struct_body << "\t\t\t" << structInfo->pfnInternalAllocation << "," << std::endl;
-    struct_body << "\t\t\t" << structInfo->pfnInternalFree << ",";
+    struct_body << "\t\t\t" << reinterpret_cast<void*>(structInfo->pfnAllocation) << "," << std::endl;
+    struct_body << "\t\t\t" << reinterpret_cast<void*>(structInfo->pfnReallocation) << "," << std::endl;
+    struct_body << "\t\t\t" << reinterpret_cast<void*>(structInfo->pfnFree) << "," << std::endl;
+    struct_body << "\t\t\t" << reinterpret_cast<void*>(structInfo->pfnInternalAllocation) << "," << std::endl;
+    struct_body << "\t\t\t" << reinterpret_cast<void*>(structInfo->pfnInternalFree) << ",";
     std::string variable_name = consumer.AddStruct(struct_body, "allocationCallbacks");
     out << "\t\t" << "VkAllocationCallbacks " << variable_name << " {" << std::endl;
     out << "\t\t" << struct_body.str() << std::endl;
@@ -14002,7 +14002,7 @@ std::string GenerateStruct_VkDebugReportCallbackCreateInfoEXT(std::ostream &out,
     struct_body << "\t" << "VkStructureType(" << structInfo->sType << ")" << "," << std::endl;
     struct_body << "\t\t\t" << pnext_name << "," << std::endl;
     struct_body << "\t\t\t" << "VkDebugReportFlagsEXT(" << structInfo->flags << ")" << "," << std::endl;
-    struct_body << "\t\t\t" << structInfo->pfnCallback << "," << std::endl;
+    struct_body << "\t\t\t" << reinterpret_cast<void*>(structInfo->pfnCallback) << "," << std::endl;
     out << "\t\t" << "// TODO: Support pUserData (non-struct output) argument." << std::endl;
     std::string variable_name = consumer.AddStruct(struct_body, "debugReportCallbackCreateInfoEXT");
     out << "\t\t" << "VkDebugReportCallbackCreateInfoEXT " << variable_name << " {" << std::endl;
@@ -18150,7 +18150,7 @@ std::string GenerateStruct_VkDeviceDeviceMemoryReportCreateInfoEXT(std::ostream 
     struct_body << "\t" << "VkStructureType(" << structInfo->sType << ")" << "," << std::endl;
     struct_body << "\t\t\t" << pnext_name << "," << std::endl;
     struct_body << "\t\t\t" << "VkDeviceMemoryReportFlagsEXT(" << structInfo->flags << ")" << "," << std::endl;
-    struct_body << "\t\t\t" << structInfo->pfnUserCallback << "," << std::endl;
+    struct_body << "\t\t\t" << reinterpret_cast<void*>(structInfo->pfnUserCallback) << "," << std::endl;
     out << "\t\t" << "// TODO: Support pUserData (non-struct output) argument." << std::endl;
     std::string variable_name = consumer.AddStruct(struct_body, "deviceDeviceMemoryReportCreateInfoEXT");
     out << "\t\t" << "VkDeviceDeviceMemoryReportCreateInfoEXT " << variable_name << " {" << std::endl;
@@ -21141,7 +21141,7 @@ std::string GenerateStruct_VkDirectDriverLoadingInfoLUNARG(std::ostream &out, co
     struct_body << "\t" << "VkStructureType(" << structInfo->sType << ")" << "," << std::endl;
     struct_body << "\t\t\t" << pnext_name << "," << std::endl;
     struct_body << "\t\t\t" << "VkDirectDriverLoadingFlagsLUNARG(" << structInfo->flags << ")" << "," << std::endl;
-    struct_body << "\t\t\t" << structInfo->pfnGetInstanceProcAddr << ",";
+    struct_body << "\t\t\t" << reinterpret_cast<void*>(structInfo->pfnGetInstanceProcAddr) << ",";
     std::string variable_name = consumer.AddStruct(struct_body, "directDriverLoadingInfoLUNARG");
     out << "\t\t" << "VkDirectDriverLoadingInfoLUNARG " << variable_name << " {" << std::endl;
     out << "\t\t" << struct_body.str() << std::endl;

@@ -165,7 +165,7 @@ option(GFXRECON_TOCPP_SUPPORT "Build ToCpp export tool as part of GFXReconstruct
 
 option(GFXRECON_INCLUDE_TEST_APPS "Build and install test apps" OFF)
 
-if (MSVC)
+if (WIN32)
 
     # The host toolchain architecture (i.e. are the compiler and other tools compiled to ARM/Intel 32bit/64bit binaries):
     message(STATUS "CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE: " ${CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE})
@@ -289,8 +289,8 @@ if (MSVC)
         endif () # GFXRECON_AGS_SUPPORT
     endif () # D3D12_SUPPORT
 
-else (MSVC)
-    # Turn off D3D12 support for non MSVC builds.
+else()
+    # Turn off D3D12 support for non WIN32 builds.
     set(D3D12_SUPPORT OFF)
     set(BUILD_LAUNCHER_AND_INTERCEPTOR OFF)
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
@@ -302,7 +302,7 @@ else (MSVC)
                 ${CMAKE_PREFIX_PATH}
                 "${PROJECT_SOURCE_DIR}/external/precompiled/linux/lib/arm")
     endif ()
-endif (MSVC)
+endif()
 
 if (APPLE)
     add_link_options(-Wl,-dead_strip -Wl,-dead_strip_dylibs)
@@ -365,6 +365,7 @@ add_library(windows_specific INTERFACE)
 target_compile_definitions(windows_specific INTERFACE
         WIN32_LEAN_AND_MEAN
         NOMINMAX
+        _CRT_SECURE_NO_WARNINGS
         VK_USE_PLATFORM_WIN32_KHR
         XR_USE_PLATFORM_WIN32
         XR_USE_GRAPHICS_API_VULKAN
@@ -398,14 +399,14 @@ target_link_libraries(platform_specific INTERFACE
         $<$<NOT:$<OR:$<BOOL:${WIN32}>,$<BOOL:${APPLE}>>>:linux_specific>)
 
 if (BUILD_WERROR)
-    if (MSVC)
+    if (WIN32)
         target_compile_options(platform_specific INTERFACE /WX)
     else ()
         target_compile_options(platform_specific INTERFACE -Werror)
     endif ()
 endif ()
 
-if(MSVC)
+if(MSVC AND CMAKE_GENERATOR MATCHES "Visual Studio")
     target_compile_options(platform_specific INTERFACE /MP)
 endif()
 

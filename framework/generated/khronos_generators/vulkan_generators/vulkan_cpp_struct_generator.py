@@ -841,6 +841,8 @@ class VulkanCppStructGenerator(VulkanBaseGenerator):
                 struct_arg = arg_name
                 if 'int8_t' in arg.base_type:
                     struct_arg = f'std::to_string({arg_name})'
+                elif arg.base_type.startswith('PFN_'):
+                    struct_arg = f'reinterpret_cast<void*>({arg_name})'
                 body.append(makeOutStructSet(struct_arg, locals(), isFirstArg, isLastArg, indent))
 
         if structName in self.feature_struct_aliases:

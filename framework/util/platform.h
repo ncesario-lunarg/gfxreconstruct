@@ -158,7 +158,7 @@ inline void CloseLibrary(LibraryHandle handle)
 
 inline void* GetProcAddress(LibraryHandle handle, const char* name)
 {
-    return ::GetProcAddress(handle, name);
+    return reinterpret_cast<void*>(::GetProcAddress(handle, name));
 }
 
 inline std::string GetEnv(const char* name)
